@@ -46,7 +46,10 @@ typedef unsigned int myint;
 /* The program will take up to O(MAX_BITS**MAX_BITS) time,
  * so I don't think you're going to need more than that 20.  */
 #define MAX_BITS 20
-static_assert(sizeof(myint) * 8 >= MAX_BITS, "Bad MAX_BITS size chosen!");
+static_assert(sizeof(myint) * 8 >= 1 + MAX_BITS, "Bad MAX_BITS size chosen!");
+/* The extra bit is needed by:
+ * - function.advance
+ * - function.end_input and function.end_output */
 
 myint pin2mask(const myint pin) {
     assert(pin <= MAX_BITS);
@@ -136,8 +139,8 @@ public:
         for (myint i = at.input_pattern; i >= 1; --i) {
             /* ↑ Consider only functions that map 0 to 0.
              * Thus, never change image[0]. */
-            /* FIXME: This assumes that pin2mask(MAX_BITS)+pin2mask(MAX_BITS)
-             * doesn't overflow.  Uhh.  See static_assert below this class. */
+            /* This assumes that pin2mask(MAX_BITS)+pin2mask(MAX_BITS)
+             * doesn't overflow.  Uhh. */
             image[i] += increment;
             increment = 1;
             if (image[i] < end_output) {
@@ -153,8 +156,6 @@ public:
         return end_input;
     }
 };
-static_assert(sizeof(myint) * 8 >= 1 + MAX_BITS,
-        "Fix function.advance implementation to handle overflow gracefully.");
 
 bit_address::bit_address(const function& f) :
         input_pattern(f.end_input)
