@@ -16,8 +16,9 @@
  *
  * Dependencies:
  *   Boost Iostreams 1.58 (other versions are probably fine, too)
- * Compile with:
+ * Compile with (uses gcc):
  *   make
+ *   If you don't have gcc, you may need to find an alternative to __builtin_ctz
  * Run as:
  *   ./mcf [<num_inputs> [<num_outputs>]]
  * Faster version (less checks, worse debuggablity):
@@ -33,6 +34,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <sstream>
 #include <vector>
 
 #include <boost/io/ios_state.hpp>
@@ -44,13 +46,48 @@ typedef unsigned int myint;
 /* The program will take up to O(MAX_BITS**MAX_BITS) time,
  * so I don't think you're going to need more than that 20.  */
 #define MAX_BITS 20
-static_assert(sizeof(myint) * 8 >= MAX_BITS,
-        "Bad MAX_BITS size chosen!");
+static_assert(sizeof(myint) * 8 >= MAX_BITS, "Bad MAX_BITS size chosen!");
 
 myint pin2mask(const myint pin) {
     assert(pin <= MAX_BITS);
     return static_cast<myint>(1) << pin;
 }
+
+class function;
+
+struct bit_address {
+    /* What's the lowest input-pattern that upset this analyzer?
+     * (Or f.end_input if not upset.) */
+    myint input_pattern;
+
+    /* For the given input, what's the most significant pin that upset this
+     * analyzer?
+     * (Or undefined if not upset.) */
+    myint bit;
+
+    // Convenience: upset
+    bit_address(myint input_pattern, myint bit) :
+            input_pattern(input_pattern), bit(bit) {
+    }
+
+    // Convenience: not upset
+    bit_address(const function& f);
+    /*Must come after the definition of class function.  Sigh. */
+
+    // Collapse default operator= and hand-written std::min overload
+    void assign_min(const bit_address& other) {
+        if (other.input_pattern < input_pattern) {
+            input_pattern = other.input_pattern;
+            bit = other.bit;
+        } else if (other.input_pattern == input_pattern) {
+            /* Note that other.bit is not defined if
+             * 'other.input_pattern == f.end_input', which we can't check
+             * right now.  However, in that case it doesn't matter what
+             * ends up in this->bit, so don't care. */
+            bit = std::min(bit, other.bit);
+        }
+    }
+};
 
 /* Glorified std::vector<myint>. Also, glorified BigNum. */
 class function {
@@ -81,17 +118,29 @@ public:
      * i.e., numerically lower index.
      * If that isn't possible, return end_input, which is an invalid place
      * (and also greater than 'at'). */
-    myint advance(const myint at) {
-        assert(at < end_input);
+    myint advance(const bit_address at) {
+        /* TODO/benchmark: pass by value or pass by reference?
+         * Since it's 64 bits in total, it *should* fit into a register, so
+         * I'll start with pass-by-value. */
+        assert(at.input_pattern < end_input);
         // Reset "digits" at "less significant places":
-        for (myint i = at + 1; i < end_input; ++i) {
+        for (myint i = at.input_pattern + 1; i < end_input; ++i) {
             image[i] = 0;
         }
+
+        /* TODO/benchmark: unroll the first iteration of this to get rid of
+         * 'increment' which may or may not interfere with pipelining. */
+
+        myint increment = pin2mask(at.bit);
         // Increment image[at], with carry:
-        for (myint i = at; i >= 1; --i) {
-            /* Consider only functions that map 0 to 0.
+        for (myint i = at.input_pattern; i >= 1; --i) {
+            /* ↑ Consider only functions that map 0 to 0.
              * Thus, never change image[0]. */
-            if (++image[i] < end_output) {
+            /* FIXME: This assumes that pin2mask(MAX_BITS)+pin2mask(MAX_BITS)
+             * doesn't overflow.  Uhh.  See static_assert below this class. */
+            image[i] += increment;
+            increment = 1;
+            if (image[i] < end_output) {
                 // Valid!
                 return i;
             } else {
@@ -104,6 +153,16 @@ public:
         return end_input;
     }
 };
+static_assert(sizeof(myint) * 8 >= 1 + MAX_BITS,
+        "Fix function.advance implementation to handle overflow gracefully.");
+
+bit_address::bit_address(const function& f) :
+        input_pattern(f.end_input)
+#ifndef MCF_ALLOW_UNINITIALIZED
+        , bit(0)
+#endif
+{
+}
 
 
 /* ----- Utility class & functions ----- */
@@ -149,11 +208,18 @@ std::ostream& operator<<(std::ostream& out, const function& f) {
     return out;
 }
 
+std::ostream& operator<<(std::ostream& out, const bit_address& at) {
+    /* Must behave like one element for 'out'.  Sigh. */
+    std::ostringstream buf;
+    buf << at.input_pattern << "." << std::setw(2) << std::setfill('0') << at.bit;
+    return out << buf.str();
+}
+
 
 /* ----- Central superclass / interface ----- */
 /* Note that each analyzer shall have the ability to retain state,
- * so I prefer this over functors.  Also, I get away without having
- * to write a template, which is nice. */
+ * so I prefer this abstract class over functors.  Also, I get away
+ * without having to write a template, which is nice. */
 
 class analyzer {
 public:
@@ -166,7 +232,7 @@ public:
      * can treat that as the same case.)
      * Returns either the most significant place that has to be increased,
      * before this analyzer is satisfied -- or 'f.end_input' if satisfied. */
-    virtual myint analyze(const function& f, const myint first_changed) = 0;
+    virtual bit_address analyze(const function& f, const myint first_changed) = 0;
 
     virtual const std::string& get_name() const = 0;
 };
@@ -185,23 +251,35 @@ public:
 
     virtual ~metastability_containing() = default;
 
-    virtual myint analyze(const function& f, const myint first_changed) {
+    virtual bit_address analyze(const function& f, const myint first_changed) {
         // 'first_changed==0' is rare enough (once) to need no extra filtering.
         for (myint i = first_changed; i < f.end_input; ++i) {
             const myint output = f.image[i];
-            for (myint in_pin = 0; in_pin < f.num_inputs; ++in_pin) {
+            myint max_tz_plus_one = 0;
+            for (myint j = f.num_inputs; j > 0; --j) {
+                const myint in_pin = j - 1;
                 // Affected bits if in-pin is 'M':
                 const myint change = output ^ f.image[i & ~pin2mask(in_pin)];
                 if (is_pot_or_zero(change)) {
                     // It's good.
                     continue;
                 }
-                // Not containing! More than one output changes!
-                return i;
+                /* Not containing!  More than one output changes!  In order to
+                 * fix this, *at least* the least significant offending output
+                 * pin must change.  However, we want to look at all input pins
+                 * and choose the most significant pin of all least significant
+                 * offending pins.
+                 * In case you're trying to get rid of __builtin_ctz, don't
+                 * worry:  it will never be called with 0. */
+                max_tz_plus_one = std::max(max_tz_plus_one,
+                        myint(__builtin_ctz(change) + 1));
+            }
+            if (max_tz_plus_one) {
+                return bit_address(i, max_tz_plus_one - 1);
             }
         }
         // Fine!
-        return f.end_input;
+        return bit_address(f);
     }
 
     virtual const std::string& get_name() const {
@@ -229,7 +307,7 @@ public:
 
     virtual ~input_relevance() = default;
 
-    virtual myint analyze(const function& f, const myint first_changed) {
+    virtual bit_address analyze(const function& f, const myint first_changed) {
         assert(first_relevant.size() == f.num_inputs);
 
         // Partially unwind state
@@ -244,7 +322,7 @@ public:
             }
         }
         if (relevant_inputs == f.num_inputs) {
-            return f.end_input;
+            return bit_address(f);
         }
 
         // Wind state forward
@@ -268,7 +346,7 @@ public:
                     // Relevant!
                     first_relevant[in_pin] = i;
                     if (++relevant_inputs == f.num_inputs) {
-                        return f.end_input;
+                        return bit_address(f);
                     }
                 }
             }
@@ -279,7 +357,7 @@ public:
          * f.image[f.end_input - 1] != 0, so we can't say much. */
         assert(relevant_inputs < f.num_inputs);
         assert(f.end_input > 0); // already in f's constructor
-        return f.end_input - 1; // smallest increment
+        return bit_address(f.end_input - 1, 0); // smallest increment
     }
 
     virtual const std::string& get_name() const {
@@ -327,93 +405,78 @@ private:
  * so we actually get (2) for free. */
 class output_ordered: public analyzer {
 public:
-    output_ordered(const function& f) :
-            first_ones(f.num_outputs, f.end_input) {
+    output_ordered(const function& f) {
         assert(f.num_outputs > 0);
+        /* Must be guaranteed by print_remaining already.  Note: this is
+         * necessary to guarantee the first loop invariant in 'analyze()'
+         * in its first invocation.
+         * To see it in action, start the program with #out / 2 > 2^#in */
+        assert(can_fit(f.num_outputs, f.end_input));
+        first_ones.reserve(f.num_outputs);
     }
 
     virtual ~output_ordered() = default;
 
-    virtual myint analyze(const function& f, const myint first_changed) {
-        assert(first_ones.size() == f.num_outputs);
-        assert(count_ones <= f.num_outputs);
+    virtual bit_address analyze(const function& f, const myint first_changed) {
+        assert(first_ones.size() <= f.num_outputs);
 
         // Partially unwind state
-        for (myint i = 0; i < first_ones.size() && count_ones > 0; ++i) {
-            assert(first_ones[i] <= f.end_input);
-            if (first_ones[i] != f.end_input
-                    && first_ones[i] >= first_changed) {
-                assert(count_ones > 0);
-                --count_ones;
-                first_ones[i] = f.end_input;
+        while (!first_ones.empty()) {
+            assert(first_ones.back() < f.end_input);
+            if (first_ones.back() >= first_changed) {
+                first_ones.pop_back();
+            } else {
+                break;
             }
         }
-        if (count_ones == f.num_outputs) {
+        if (first_ones.size() == f.num_outputs) {
             if (DEBUG_ORD) {
                 std::cout << "ord: Incomplete unwind" << std::endl;
             }
-            return f.end_input;
+            return bit_address(f);
         }
 
         // Wind state forward
         for (myint i = first_changed; i < f.end_input; ++i) {
-            {
-                const myint missing_ones = (f.num_outputs - count_ones);
-                if (i + missing_ones > f.end_input) {
-                    if (DEBUG_ORD) {
-                        std::cout << "ord: missing many ones" << std::endl;
-                    }
-                    return f.end_input - missing_ones;
-                }
-            }
+            /* Loop invariant:  it must still be (theoretically) possible to fit
+             * all remaining first_ones in the runway, according to can_fit.
+             * Second invariant:  not all first-zeros have been seen already. */
+            assert(can_fit(f.num_outputs - first_ones.size(), f.end_input - i));
+            assert(first_ones.size() < f.num_outputs);
             const myint output = f.image[i];
-            for (myint out_pin = 0; out_pin < f.num_outputs; ++out_pin) {
-                if (!(output & pin2mask(out_pin))) {
-                    continue;
+            const myint out_pin = first_ones.size();
+            if (output & (pin2mask(out_pin) - 1)) {
+                /* A naughty pin was set.  The next output that doesn't have a
+                 * naughty output pin necessarily has 'out_pin' set. */
+                return bit_address(i, out_pin);
+            }
+            if (output & pin2mask(out_pin)) {
+                assert(first_ones.empty() || first_ones.back() < i);
+                /* Great!  This can't make things worse.  (And if, then another
+                 * analyzer is complaining.) */
+                first_ones.push_back(i);
+                assert(first_ones.size() <= f.num_outputs);
+                if (first_ones.size() == f.num_outputs) {
+                    /* Whee! Finished! */
+                    return bit_address(f);
                 }
-                if (first_ones[out_pin] < i) {
-                    continue;
-                }
-                assert(first_ones[out_pin] == f.end_input);
-                /* => This definitely is the first one! */
-
-                if (count_ones + 1 < out_pin) {
-                    /* This is just a generalization of the upcoming check. */
-                    if (DEBUG_ORD) {
-                        std::cout << "ord: Too few ones for this first one"
-                                << std::endl;
-                    }
-                    return i;
-                }
-                /* Did all "previous" out-pins already have their first one? */
-                for (myint out_pin_p = 0; out_pin_p < out_pin; ++out_pin_p) {
-                    if (first_ones[out_pin_p] >= i) {
-                        /* Nope. */
-                        if (DEBUG_ORD) {
-                            std::cout << "ord: order violated" << std::endl;
-                        }
-                        return i;
-                    }
-                }
-
-                /* Still here? Then it's a "valid" one. */
-                first_ones[out_pin] = i;
-                ++count_ones;
-                if (count_ones == f.num_outputs) {
-                    if (DEBUG_ORD) {
-                        std::cout << "ord: Enough ones" << std::endl;
-                    }
-                    return f.end_input;
-                }
+                continue;
+            }
+            /* Not a '1'?  Hmm.  We might have run out of runway. */
+            assert(f.num_outputs - first_ones.size() > 0);
+            if (!can_fit(f.num_outputs - first_ones.size(), f.end_input - (i + 1))) {
+                /* Then the next output that has enough runway necessarily has
+                 * 'out_pin' set. */
+                return bit_address(i, out_pin);
             }
         }
 
-        // Handle non-fulfillment
-        assert(f.num_outputs - 1 == count_ones);
-        if (DEBUG_ORD) {
-            std::cout << "ord: missing final one" << std::endl;
-        }
-        return f.end_input - 1;
+        /* Not possible to reach this. */
+        std::cout << "FAIL" << std::endl;
+        std::cerr << "FAIL" << std::endl;
+        assert(false);
+        // Sigh.
+        return bit_address(0, 0);
     }
 
     virtual const std::string& get_name() const {
@@ -421,13 +484,42 @@ public:
         return name;
     }
 
+    /* Must be public, as the constructor would like to have that property
+     * already.  And *that* can only be guaranteed if print_remaining checks
+     * it. */
+    static bool can_fit(const size_t ones, const size_t runway) {
+        /* Two consecutive input patterns ending in ..0 and ..1 can't introduce
+         * two (or more) new first-ones together (read: in summation).
+         *
+         * Proof: First of all, a single input pattern can't introduce two or
+         * more by itself, because that's an obvious violation of
+         * metastability-containment.  So the only way to achieve that is by
+         * "distributing it", i.e., each input pattern introduces exactly one
+         * first-one.  However, the second pattern is adjacent to the first
+         * pattern, so it must also contain the one introduced by the first.
+         * Furthermore, the second pattern must be also adjacent to another
+         * input pattern (as the ...0 pattern can't have been all zeros, because
+         * by construction f(0)=0, and the ...0 pattern introduces a one).
+         * This earlier pattern can't possibly contain either 1 because it
+         * appeared first in the outputs to the ..0 and ..1 patterns,
+         * respectively.  Thus the ..1 pattern and the other input pattern
+         * differ in only one bit, but their outputs in (at least) two bits.
+         * Violation to metastability-containment!
+         *
+         * So, given 'runway', we can fit at most round_up(runway / 2)
+         * first-ones.  As we can see in README.md#statistics, this bound seems
+         * to be tight; at least for #out <= 16. */
+        const size_t max_fit = (runway + 1) / 2;
+        return ones <= max_fit;
+    }
+
 private:
     static const bool DEBUG_ORD = false;
 
     /* For each output pin, on which input-pattern did we first see it
-     * getting activated?  */
+     * getting activated?  Note that this will always be an ordered,
+     * strictly increasing sequence. */
     std::vector<myint> first_ones;
-    myint count_ones = 0;
 };
 
 
@@ -442,7 +534,6 @@ const static size_t DEBUG_PRINT_STEP = 5000000;
  * Also prints some statistics to std::cerr. */
 void print_remaining(function& f, std::vector<analyzer*>& properties) {
     boost::io::ios_width_saver butler_width(std::cerr);
-    myint last_change = 0;
     std::cerr << "Searching for function with " << properties.size()
             << " properties:";
     std::cerr << std::endl;
@@ -460,36 +551,44 @@ void print_remaining(function& f, std::vector<analyzer*>& properties) {
     size_t steps = 0;
     myint display_watchdog = 0;
     myint fns = 0;
-    do {
-        if (DEBUG_PRINT) {
-            std::cerr << "#? " << f << std::endl;
-        }
-        ++display_watchdog;
-        ++steps;
-        const myint tell = last_change;
-        last_change = f.end_input;
-        for (analyzer* a : properties) {
-            const myint proposed = a->analyze(f, tell);
+    if (output_ordered::can_fit(f.num_outputs, f.end_input)) {
+        myint last_change = 0;
+        do {
             if (DEBUG_PRINT) {
-                std::cerr << proposed << '\t';
+                std::cerr << "#? " << f << std::endl;
             }
-            last_change = std::min(last_change, proposed);
-        }
-        if (DEBUG_PRINT) {
-            std::cerr << std::endl;
-        }
-        if (last_change == f.end_input) {
-            // Yay!
-            std::cout << "=> " << f << std::endl;
-            ++fns;
-            last_change = f.end_input - 1;
-        } else if (display_watchdog >= DEBUG_PRINT_STEP) {
-            std::cerr << "#_ " << f << std::endl;
-            std::cerr << "#_ " << fns << " fns in " << steps << " steps."
-                    << std::endl;
-            display_watchdog -= DEBUG_PRINT_STEP;
-        }
-    } while ((last_change = f.advance(last_change)) < f.end_input);
+            ++display_watchdog;
+            ++steps;
+            bit_address next_change(f);
+
+            for (analyzer* a : properties) {
+                const bit_address proposed = a->analyze(f, last_change);
+                if (DEBUG_PRINT) {
+                    std::cerr << proposed << '\t';
+                }
+                next_change.assign_min(proposed);
+            }
+            if (DEBUG_PRINT) {
+                std::cerr << std::endl;
+            }
+            if (next_change.input_pattern == f.end_input) {
+                // Yay!
+                std::cout << "=> " << f << std::endl;
+                ++fns;
+                next_change.input_pattern = f.end_input - 1;
+                next_change.bit = 0;
+            } else if (display_watchdog >= DEBUG_PRINT_STEP) {
+                std::cerr << "#_ " << f << std::endl;
+                std::cerr << "#_ " << fns << " fns in " << steps << " steps."
+                        << std::endl;
+                display_watchdog -= DEBUG_PRINT_STEP;
+            }
+            last_change = f.advance(next_change);
+        } while (last_change < f.end_input);
+    } else {
+        std::cerr << "Impossibly many output pins."
+                "  Pruning whole search right away." << std::endl;
+    }
     std::cerr << std::setw(0) << "Done searching.  Found "
             << fns << " fns in " << steps << " steps." << std::endl;
 }
@@ -520,9 +619,16 @@ int main(int argc, char **argv) {
             << std::endl;
 
     function f = function(num_inputs, num_outputs);
+
+    /* HERE BE DRAGONS!  The analyzers are not really as independent as they
+     * may seem.  For instance, 'output_ordered' may sometimes (and
+     * inconsistently) enforce metastability-containment.  Thus, if you remove
+     * 'metastability_containing' from the list but leave 'output_ordered', you
+     * may be surprised by some/all functions being skipped. */
     metastability_containing p_msc;
     input_relevance p_ir(f);
     output_ordered p_ord(f);
+
     std::vector<analyzer*> properties;
     properties.push_back(&p_ord);
     properties.push_back(&p_msc);

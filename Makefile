@@ -11,6 +11,7 @@ mcf: mcf.cpp
 mcf_fast: mcf.cpp
 	g++ -std=c++11 -Wall -Wextra -pedantic -Werror -O3 \
 		-DNDEBUG -fomit-frame-pointer -march=native \
+		-DMCF_ALLOW_UNINITIALIZED -Wno-maybe-uninitialized \
 		-o mcf_fast mcf.cpp
 
 .PHONY: run
