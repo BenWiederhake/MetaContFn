@@ -23,41 +23,8 @@
  * Faster version (less checks, worse debuggablity):
  *   make mcf_fast && ./mcf_fast [<num_inputs> [<num_outputs>]]
  * Where:
- * - <num_inputs> is the number of binary inputs.  Defaults to 4.
- * - <num_outputs> is the number of binary outputs.  Defaults to 7.
- *
- * Here's some fun statistics, gathered by running it once on my machine:
- *
- * in  out fns      time
- * -----------------------
- * 2   2   3        <.01s
- * 2   3   0        <.01s
- * -----------------------
- * 3   2   195      <.01s
- * 3   3   55       <.01s
- * 3   4   2        <.01s
- * 3   5   0        <.01s
- * -----------------------
- * 4   2   131667   0.5s
- * 4   3   124086   0.6s
- * 4   4   45415    0.6s
- * 4   5   8764     1.4s
- * 4   6   1052     3.8s
- * 4   7   72       9.1s
- * 4   8   2        20.6s
- * 4   9   0        38s
- * -----------------------
- * 5   2   >6.3M    >36s
- * 5   3   >9.2M    >61s
- * 5   4   >5.7M    >64s
- * 5   5   >1.9M    >68s
- * 5   6   >134K    >56s
- * 5   7   >12K     >86s
- * 5   8   >1174*   >200s
- * 5   9   >=0*     >300s
- * 5   10  >=0*     >300s
- *
- * *: most of the function space wasn't even explored due to the limited time.
+ * - <num_inputs> is the number of binary inputs.  Defaults to 3.
+ * - <num_outputs> is the number of binary outputs.  Defaults to 3.
  */
 
 #include <algorithm>
