@@ -468,7 +468,7 @@ private:
 
 const static bool DEBUG_PRINT = false;
 
-const static myint DEBUG_PRINT_STEP = 5000000;
+const static size_t DEBUG_PRINT_STEP = 5000000;
 
 /* Print all (remaining) functions with the desired properties to std::cout.
  * Note that the 'properties' vector will not be changed, but its elements.
@@ -490,14 +490,14 @@ void print_remaining(function& f, std::vector<analyzer*>& properties) {
     if (DEBUG_PRINT) {
         std::cerr << std::endl;
     }
-    myint steps = 0;
-    myint counter = 0; // FIXME: rename 'display_watchdog'
+    size_t steps = 0;
+    myint display_watchdog = 0;
     myint fns = 0;
     do {
         if (DEBUG_PRINT) {
             std::cerr << "#? " << f << std::endl;
         }
-        ++counter;
+        ++display_watchdog;
         ++steps;
         const myint tell = last_change;
         last_change = f.end_input;
@@ -516,11 +516,11 @@ void print_remaining(function& f, std::vector<analyzer*>& properties) {
             std::cout << "=> " << f << std::endl;
             ++fns;
             last_change = f.end_input - 1;
-        } else if (counter >= DEBUG_PRINT_STEP) {
+        } else if (display_watchdog >= DEBUG_PRINT_STEP) {
             std::cerr << "#_ " << f << std::endl;
             std::cerr << "#_ " << fns << " fns in " << steps << " steps."
                     << std::endl;
-            counter -= DEBUG_PRINT_STEP;
+            display_watchdog -= DEBUG_PRINT_STEP;
         }
     } while ((last_change = f.advance(last_change)) < f.end_input);
     std::cerr << std::setw(0) << "Done searching.  Found "
