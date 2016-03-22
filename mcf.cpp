@@ -468,6 +468,8 @@ private:
 
 const static bool DEBUG_PRINT = false;
 
+const static myint DEBUG_PRINT_STEP = 5000000;
+
 /* Print all (remaining) functions with the desired properties to std::cout.
  * Note that the 'properties' vector will not be changed, but its elements.
  * Also prints some statistics to std::cerr. */
@@ -514,11 +516,11 @@ void print_remaining(function& f, std::vector<analyzer*>& properties) {
             std::cout << "=> " << f << std::endl;
             ++fns;
             last_change = f.end_input - 1;
-        } else if (counter > 1000000) {
+        } else if (counter >= DEBUG_PRINT_STEP) {
             std::cerr << "#_ " << f << std::endl;
             std::cerr << "#_ " << fns << " fns in " << steps << " steps."
                     << std::endl;
-            counter -= 1000000;
+            counter -= DEBUG_PRINT_STEP;
         }
     } while ((last_change = f.advance(last_change)) < f.end_input);
     std::cerr << std::setw(0) << "Done searching.  Found "
