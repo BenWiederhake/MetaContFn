@@ -20,6 +20,8 @@
  *   make
  * Run as:
  *   ./mcf [<num_inputs> [<num_outputs>]]
+ * Faster version (less checks, worse debuggablity):
+ *   make mcf_fast && ./mcf_fast [<num_inputs> [<num_outputs>]]
  * Where:
  * - <num_inputs> is the number of binary inputs.  Defaults to 4.
  * - <num_outputs> is the number of binary outputs.  Defaults to 7.
