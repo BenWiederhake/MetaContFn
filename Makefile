@@ -2,7 +2,7 @@
 # Copyright (C) Ben Wiederhake
 # All rights reserved
 
-all: mcf
+all: mcf mcf_fast
 
 mcf: mcf.cpp
 	g++ -std=c++11 -Wall -Wextra -pedantic -Werror -O2 -g \
