@@ -141,64 +141,6 @@ public:
 
 /* ----- Utility class & functions ----- */
 
-/* There's no standard abstraction for mappings with the key set:
- *     { (a, b) \in {0, ..., n - 1}^2 \mid a < b }
- * Proposal: the following should be valid code:
- *     std::triangle<std::vector<mytype>> t(num_entries, mytype(42));
- *     // Two indices for handling as a triangle:
- *     t.at(0, 1) = mytype(1337); // 'at' and 'op[]' bounded by 'size2d()'
- *     // one index for handling as a collection:
- *     t[42] = mytype(23); // 'at' and 'op[]' bounded by 'size()'
- *     // Not shown: begin(), end(), etc.
- *     std::cout << t[0] << std::endl; // outputs "mytype(1337)"
- * Thus, here's an incomplete (but hopefully not broken) implementation: */
-class triangle_myint {
-public:
-    triangle_myint(const myint num, const myint init) :
-            n(num), store(tr(num), init) {
-    }
-
-    /* Disable copy / move */
-    triangle_myint(const triangle_myint&) = delete;
-    triangle_myint(triangle_myint&&) = delete;
-    triangle_myint& operator=(const triangle_myint&) = delete;
-    triangle_myint&& operator=(triangle_myint&&) = delete;
-
-    myint& at(const myint a, const myint b) {
-        assert(a < b);
-        assert(b < n);
-        const myint idx = tr(b) + a;
-        assert(idx < store.size());
-        return store.at(idx);
-    }
-    // ↑ No need for const version needed here, thankfully.
-
-    myint size2d() const {
-        return n;
-    }
-
-    myint& operator[](const myint idx) {
-        assert(idx < store.size());
-        return store.at(idx);
-    }
-    // ↑ No need for const version needed here, thankfully.
-
-    myint size() const {
-        return static_cast<myint>(store.size());
-    }
-
-private:
-    /* 'n' could be computed on-the-fly, but ... eh. */
-    const myint n;
-    std::vector<myint> store;
-
-    /* Compute the nth triangle number.
-     * In other words: compute the size of the key set (see class comment). */
-    static myint tr(const myint n) {
-        return (n * (n - 1)) / 2;
-    }
-};
-
 myint parse_arg(char *arg) {
     const unsigned long raw_val = std::stoul(arg, nullptr, 0);
     if (raw_val > MAX_BITS) {
@@ -399,162 +341,110 @@ private:
  *     that the output pins have different states when representing f(x), f(y).
  *     This eliminates functions with redundant output pins.  Note that due to
  *     f(0) == 0 (see constructor of class 'function') it is already impossible
- *     that x is always the opposite of y (and thus redundant in a different
- *     way).
+ *     that x is always the exact opposite of y (and thus redundant in a
+ *     different way).
  *     Yeah, this property is also implied by "metastability-containing and no
  *     constant pins", but it can be detected here trivially and makes the
  *     following easier to implement:
  *
- * (3) Consider two output pins a, b.  Let ONES(a) and ONES(b) each be the set
- *     of inputs that cause a and b (respectively, not simultaneously) to be in
- *     the "on" state.  Define the order of output bits to be the lexicographical
- *     order of ONES(a), ONES(b).  Only allow functions where the output pins are
- *     ordered according to this definition.
+ * (3) Consider two output pins a, b.  Let ONE(a) and ONE(b) each be the first
+ *     input-pattern that cause a and b respectively to be in the "on" state.
+ *     Note that ONE(a) != ONE(b), because otherwise it can't possibly be
+ *     metastability-containing anymore.  Define the order of output bits to be
+ *     the *reverse* order of ONE(a), ONE(b).  Only allow functions where the
+ *     output pins are ordered according to this definition.
  *     This eliminates the inherent combinatorial explosion, and leaves only
- *     truly different functions.
- *     In fact, we *reverse* this order, so that only output pin 0 can
- *     potentially be the constant zero function.
+ *     semantically distinct functions.
  *
- * Note that ordering with inequality implies independence. */
+ * Note that ordering with inequality implies independence,
+ * so we actually get (2) for free. */
 class output_ordered: public analyzer {
 public:
     output_ordered(const function& f) :
-            first_one(f.end_input), first_difference(f.num_outputs, f.end_input) {
+            first_ones(f.num_outputs, f.end_input) {
         assert(f.num_outputs > 0);
     }
 
     virtual ~output_ordered() = default;
 
     virtual myint analyze(const function& f, const myint first_changed) {
-        assert(differences <= first_difference.size());
-        assert(first_difference[0] <= f.end_input);
+        assert(first_ones.size() == f.num_outputs);
+        assert(count_ones <= f.num_outputs);
 
         // Partially unwind state
-        for (myint i = 0; i < first_difference.size() && differences > 0; ++i) {
-            assert(first_difference[i] <= f.end_input);
-            if (first_difference[i] != f.end_input
-                    && first_difference[i] >= first_changed) {
-                assert(differences > 0);
-                --differences;
-                first_difference[i] = f.end_input;
+        for (myint i = 0; i < first_ones.size() && count_ones > 0; ++i) {
+            assert(first_ones[i] <= f.end_input);
+            if (first_ones[i] != f.end_input
+                    && first_ones[i] >= first_changed) {
+                assert(count_ones > 0);
+                --count_ones;
+                first_ones[i] = f.end_input;
             }
         }
-        assert(first_one <= f.end_input);
-        if (first_one != f.end_input && first_one >= first_changed) {
-            first_one = f.end_input;
-        }
-        if (differences == first_difference.size()
-                && first_one != f.end_input) {
+        if (count_ones == f.num_outputs) {
             if (DEBUG_ORD) {
                 std::cout << "ord: Incomplete unwind" << std::endl;
             }
             return f.end_input;
-            /* If !first_one, we don't know yet whether pin 0 is the constant
-             * zero function, that's why there's no more cases here. */
         }
 
         // Wind state forward
         for (myint i = first_changed; i < f.end_input; ++i) {
-            // TODO/benchmark/design: Pull apart into *two* loops?
-            const myint output = f.image[i];
-            // TODO/benchmark: inline pin2mask(0)?
-            if (first_one == f.end_input && (output & pin2mask(0))) {
-                first_one = i;
-                if (differences == first_difference.size()) {
+            {
+                const myint missing_ones = (f.num_outputs - count_ones);
+                if (i + missing_ones > f.end_input) {
                     if (DEBUG_ORD) {
-                        std::cout << "ord: final 'first_one' (diff was at "<<first_difference[0]<<")" << std::endl;
+                        std::cout << "ord: missing many ones" << std::endl;
                     }
-                    // Whee! Success!
-                    return f.end_input;
+                    return f.end_input - missing_ones;
                 }
             }
-            if (differences == first_difference.size()) {
-                continue;
-            }
-            for (myint out_pin_i = 0; out_pin_i < f.num_outputs; ++out_pin_i) {
-                // TODO/benchmark: Cache '!!(output & pin2mask(out_pin_i))' ?
-                for (myint out_pin_j = out_pin_i + 1; out_pin_j < f.num_outputs;
-                        ++out_pin_j) {
-                    if (!!(output & pin2mask(out_pin_i))
-                            == !!(output & pin2mask(out_pin_j))) {
-                        // Same state => skip
-                        continue;
+            const myint output = f.image[i];
+            for (myint out_pin = 0; out_pin < f.num_outputs; ++out_pin) {
+                if (!(output & pin2mask(out_pin))) {
+                    continue;
+                }
+                if (first_ones[out_pin] < i) {
+                    continue;
+                }
+                assert(first_ones[out_pin] == f.end_input);
+                /* => This definitely is the first one! */
+
+                if (count_ones + 1 < out_pin) {
+                    /* This is just a generalization of the upcoming check. */
+                    if (DEBUG_ORD) {
+                        std::cout << "ord: Too few ones for this first one"
+                                << std::endl;
                     }
-                    myint& diff = first_difference.at(out_pin_i, out_pin_j);
-                    if (diff != f.end_input) {
-                        // First difference lies in the past => skip
-                        continue;
-                    }
-                    if (output & pin2mask(out_pin_i)) {
-                        // Smaller pin has triggered first => violated order!
+                    return i;
+                }
+                /* Did all "previous" out-pins already have their first one? */
+                for (myint out_pin_p = 0; out_pin_p < out_pin; ++out_pin_p) {
+                    if (first_ones[out_pin_p] >= i) {
+                        /* Nope. */
                         if (DEBUG_ORD) {
-                            std::cout << "ord: inval diff" << std::endl;
+                            std::cout << "ord: order violated" << std::endl;
                         }
-                        assert(!(output & pin2mask(out_pin_j)));
                         return i;
                     }
-                    assert(output & pin2mask(out_pin_j));
-                    // Correct difference.  Log and continue.
-                    diff = i;
-                    ++differences;
-                    if (differences == first_difference.size()) {
-                        if (first_one != f.end_input) {
-                            if (DEBUG_ORD) {
-                                std::cout << "ord: final diff" << std::endl;
-                            }
-                            /* Whee! Success! */
-                            return f.end_input;
-                        } else {
-                            /* TODO/benchmark: What is quicker?
-                             * - Letting it run normally, maybe exploiting
-                             *   loop unrolling?
-                             * - Trying a 'break 2;' like currently? */
-                            out_pin_i = out_pin_j = f.num_outputs;
-                        }
+                }
+
+                /* Still here? Then it's a "valid" one. */
+                first_ones[out_pin] = i;
+                ++count_ones;
+                if (count_ones == f.num_outputs) {
+                    if (DEBUG_ORD) {
+                        std::cout << "ord: Enough ones" << std::endl;
                     }
+                    return f.end_input;
                 }
             }
         }
 
         // Handle non-fulfillment
-        assert(
-                (differences < first_difference.size())
-                        || (first_one == f.end_input));
-        if (differences < first_difference.size()) {
-            /* In each step / place / input-pattern-index-thing, the number
-             * of resolvable differences is at most:
-             *     number of zero-pins * number of one-pins
-             * ... which is at most num_outputs^2 / 2: */
-            const myint half_outputs = f.num_outputs / 2;
-            const myint max_diff_per_step = half_outputs
-                    * (f.num_outputs - half_outputs);
-            assert(max_diff_per_step > 0);
-            /* Divide, round up */
-            const myint min_steps_needed = (first_difference.size()
-                    - differences + max_diff_per_step - 1)
-                    / max_diff_per_step;
-            /* In case you didn't notice: 'min_steps_needed' is never
-             * greater than 2.  Ugh.
-             * TODO/optimize: This doesn't seem to be tight yet. */
-            assert(min_steps_needed > 0);
-            if (DEBUG_ORD) {
-                std::cout << "ord: missing " << (first_difference.size()
-                        - differences) << " diffs:";
-            }
-            if (DEBUG_ORD) {
-                for (myint i = 0; i < first_difference.size(); ++i) {
-                    std::cout << " " << first_difference[i];
-                }
-                std::cout << std::endl;
-            }
-            return f.end_input - min_steps_needed;
-        }
-        assert(first_one == f.end_input);
-        /* So all are different, but the zeroth pin is the constant zero
-         * function?  Dangit.  That *might* change with only touching the
-         * last place of the function image, so: */
+        assert(f.num_outputs - 1 == count_ones);
         if (DEBUG_ORD) {
-            std::cout << "ord: missing first_one" << std::endl;
+            std::cout << "ord: missing final one" << std::endl;
         }
         return f.end_input - 1;
     }
@@ -567,15 +457,10 @@ public:
 private:
     static const bool DEBUG_ORD = false;
 
-    /* Only the first output pin can possibly be the constant zero function,
-     * so keep track of it separately. */
-    myint first_one;
-
-    /* On which input-pattern did we see a valid difference between i and j?
-     * => std::triangle<std::vector<myint>> pretty please? */
-    triangle_myint first_difference;
-    // How many valid differences are known?
-    myint differences = 0;
+    /* For each output pin, on which input-pattern did we first see it
+     * getting activated?  */
+    std::vector<myint> first_ones;
+    myint count_ones = 0;
 };
 
 
@@ -590,25 +475,30 @@ void print_remaining(function& f, std::vector<analyzer*>& properties) {
     boost::io::ios_width_saver butler_width(std::cerr);
     myint last_change = 0;
     std::cerr << "Searching for function with " << properties.size()
-            << " properties:" << std::endl;
-    if (DEBUG_PRINT) {
-        std::cerr << std::setw(10);
-        for (analyzer* a : properties) {
-            std::cerr << a->get_name() << '\t';
+            << " properties:";
+    std::cerr << std::endl;
+    for (analyzer* a : properties) {
+        std::cerr << a->get_name();
+        if (DEBUG_PRINT) {
+            std::cerr << '\t';
+        } else {
+            std::cerr << std::endl;
         }
+    }
+    if (DEBUG_PRINT) {
         std::cerr << std::endl;
     }
-    myint counter = 0;
+    myint steps = 0;
+    myint counter = 0; // FIXME: rename 'display_watchdog'
+    myint fns = 0;
     do {
         if (DEBUG_PRINT) {
             std::cerr << "#? " << f << std::endl;
         }
         ++counter;
+        ++steps;
         const myint tell = last_change;
         last_change = f.end_input;
-        if (DEBUG_PRINT) {
-            std::cerr << std::setw(10);
-        }
         for (analyzer* a : properties) {
             const myint proposed = a->analyze(f, tell);
             if (DEBUG_PRINT) {
@@ -622,14 +512,17 @@ void print_remaining(function& f, std::vector<analyzer*>& properties) {
         if (last_change == f.end_input) {
             // Yay!
             std::cout << "=> " << f << std::endl;
-            counter = 0;
+            ++fns;
             last_change = f.end_input - 1;
         } else if (counter > 1000000) {
             std::cerr << "#_ " << f << std::endl;
-            counter = 0;
+            std::cerr << "#_ " << fns << " fns in " << steps << " steps."
+                    << std::endl;
+            counter -= 1000000;
         }
     } while ((last_change = f.advance(last_change)) < f.end_input);
-    std::cerr << std::setw(0) << "Done searching." << std::endl;
+    std::cerr << std::setw(0) << "Done searching.  Found "
+            << fns << " fns in " << steps << " steps." << std::endl;
 }
 
 
@@ -639,8 +532,8 @@ int main(int argc, char **argv) {
     myint num_inputs;
     myint num_outputs;
     try {
-        num_inputs = (argc > 1) ? parse_arg(argv[1]) : 4;
-        num_outputs = (argc > 2) ? parse_arg(argv[2]) : 7;
+        num_inputs = (argc > 1) ? parse_arg(argv[1]) : 3;
+        num_outputs = (argc > 2) ? parse_arg(argv[2]) : 3;
     } catch (const std::invalid_argument& ia) {
         std::cerr << "Arguments are non-numeric." << std::endl;
         std::cerr << "Usage: " << argv[0] << " [<num_inputs> [<num_outputs>]]"
