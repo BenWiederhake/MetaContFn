@@ -71,17 +71,37 @@
 #include <boost/io/ios_state.hpp>
 
 
+/* ----- Configure me? ----- */
+
+/* The program will take up to O(MAX_OUT_BITS**(2**MAX_IN_BITS)) time,
+ * so I don't think you're going to need more than 16 and 32 respectively. */
+#define MAX_IN_BITS 16
+#define MAX_OUT_BITS 32
+/* Must be >= log_2 MAX_OUT_BITS */
+#define LOG_MAX_OUT_BITS 5
+
+/* See below for all requirements on this type. */
+typedef unsigned int myint;
+
+
 /* ----- Things that will be everywhere ----- */
 
-typedef unsigned int myint;
-/* The program will take up to O(MAX_BITS**MAX_BITS) time,
- * so I don't think you're going to need more than that 20.  */
-#define MAX_BITS 20
-static_assert(sizeof(myint) * 8 >= MAX_BITS,
-        "Bad MAX_BITS size chosen!");
+/* Full address must fit into myint. */
+static_assert(sizeof(myint) * 8 >= (MAX_IN_BITS + LOG_MAX_OUT_BITS),
+        "Bad MAX_*_BITS sizes chosen!");
+/* Output must fit into myint. */
+static_assert(sizeof(myint) * 8 >= MAX_OUT_BITS,
+        "Bad MAX_OUT_BITS sizes chosen!");
+/* LOG_M_O_B >= log_2 M_O_B */
+static_assert(LOG_MAX_OUT_BITS < MAX_OUT_BITS,
+        "LOG_MAX_OUT_BITS is way too large!");
+static_assert((static_cast<myint>(1) << LOG_MAX_OUT_BITS) >= MAX_OUT_BITS,
+        "LOG_MAX_OUT_BITS is too large!");
+static_assert(!(static_cast<myint>(MAX_OUT_BITS) >> LOG_MAX_OUT_BITS),
+        "LOG_MAX_OUT_BITS is too small!");
 
 myint pin2mask(const myint pin) {
-    assert(pin <= MAX_BITS);
+    assert(pin <= MAX_OUT_BITS || pin <= MAX_IN_BITS);
     return static_cast<myint>(1) << pin;
 }
 
@@ -141,9 +161,9 @@ public:
 
 /* ----- Utility class & functions ----- */
 
-myint parse_arg(char *arg) {
+myint parse_arg(char *arg, const myint max_val) {
     const unsigned long raw_val = std::stoul(arg, nullptr, 0);
-    if (raw_val > MAX_BITS) {
+    if (raw_val > max_val) {
         throw std::out_of_range(""); // message is ignored anyway
     }
     return static_cast<unsigned int>(raw_val);
@@ -199,6 +219,7 @@ public:
      * can treat that as the same case.)
      * Returns either the most significant place that has to be increased,
      * before this analyzer is satisfied -- or 'f.end_input' if satisfied. */
+    // FIXME: Idea: cram the address of the bit-to-change into a single myint.
     virtual myint analyze(const function& f, const myint first_changed) = 0;
 
     virtual const std::string& get_name() const = 0;
@@ -534,16 +555,16 @@ int main(int argc, char **argv) {
     myint num_inputs;
     myint num_outputs;
     try {
-        num_inputs = (argc > 1) ? parse_arg(argv[1]) : 3;
-        num_outputs = (argc > 2) ? parse_arg(argv[2]) : 3;
+        num_inputs = (argc > 1) ? parse_arg(argv[1], MAX_IN_BITS) : 3;
+        num_outputs = (argc > 2) ? parse_arg(argv[2], MAX_OUT_BITS) : 3;
     } catch (const std::invalid_argument& ia) {
         std::cerr << "Arguments are non-numeric." << std::endl;
         std::cerr << "Usage: " << argv[0] << " [<num_inputs> [<num_outputs>]]"
                 << std::endl;
         return 1;
     } catch (const std::out_of_range& ia) {
-        std::cerr << "Arguments are too big; only [0, " << MAX_BITS
-                << "] is supported!" << std::endl;
+        std::cerr << "Arguments are too big; num_inputs must be <= " << MAX_IN_BITS
+                << ", and num_output <= " << MAX_OUT_BITS << std::endl;
         std::cerr << "Usage: " << argv[0] << " [<num_inputs> [<num_outputs>]]"
                 << std::endl;
         return 1;
