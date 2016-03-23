@@ -76,20 +76,6 @@ struct bit_address {
     // Convenience: not upset
     bit_address(const function& f);
     /*Must come after the definition of class function.  Sigh. */
-
-    // Collapse default operator= and hand-written std::min overload
-    void assign_min(const bit_address& other) {
-        if (other.input_pattern < input_pattern) {
-            input_pattern = other.input_pattern;
-            bit = other.bit;
-        } else if (other.input_pattern == input_pattern) {
-            /* Note that other.bit is not defined if
-             * 'other.input_pattern == f.end_input', which we can't check
-             * right now.  However, in that case it doesn't matter what
-             * ends up in this->bit, so don't care. */
-            bit = std::min(bit, other.bit);
-        }
-    }
 };
 
 /* Glorified std::vector<myint>. Also, glorified BigNum. */
@@ -230,7 +216,8 @@ public:
      * can treat that as the same case.)
      * Returns either the most significant place that has to be increased,
      * before this analyzer is satisfied -- or 'f.end_input' if satisfied. */
-    virtual bit_address analyze(const function& f, const myint first_changed) = 0;
+    virtual bit_address analyze(const function& f, const myint first_changed,
+                                const bit_address& current_outlook) = 0;
 
     virtual const std::string& get_name() const = 0;
 };
@@ -249,9 +236,12 @@ public:
 
     virtual ~metastability_containing() = default;
 
-    virtual bit_address analyze(const function& f, const myint first_changed) {
+    virtual bit_address analyze(const function& f, const myint first_changed,
+                                const bit_address& current_outlook) {
+        assert(current_outlook.input_pattern <= f.end_input);
+
         // 'first_changed==0' is rare enough (once) to need no extra filtering.
-        for (myint i = first_changed; i < f.end_input; ++i) {
+        for (myint i = first_changed; i < current_outlook.input_pattern; ++i) {
             const myint output = f.image[i];
             myint max_tz_plus_one = 0;
             for (myint j = f.num_inputs; j > 0; --j) {
@@ -276,8 +266,8 @@ public:
                 return bit_address(i, max_tz_plus_one - 1);
             }
         }
-        // Fine!
-        return bit_address(f);
+        // Fine with me.
+        return current_outlook;
     }
 
     virtual const std::string& get_name() const {
@@ -305,22 +295,31 @@ public:
 
     virtual ~input_relevance() = default;
 
-    virtual bit_address analyze(const function& f, const myint first_changed) {
+    virtual bit_address analyze(const function& f, const myint first_changed,
+                                const bit_address& current_outlook) {
         assert(first_relevant.size() == f.num_inputs);
+
+        unwind_from = std::min(unwind_from, first_changed);
+
+        /* Don't even unwind if we know that more is gonna change. */
+        if (current_outlook.input_pattern != f.end_input) {
+            return current_outlook;
+        }
 
         // Partially unwind state
         for (myint i = 0; i < first_relevant.size() && relevant_inputs > 0;
                 ++i) {
             assert(first_relevant[i] <= f.end_input);
             if (first_relevant[i] != f.end_input
-                    && first_relevant[i] >= first_changed) {
+                    && first_relevant[i] >= unwind_from) {
                 assert(relevant_inputs > 0);
                 --relevant_inputs;
                 first_relevant[i] = f.end_input;
             }
         }
+        unwind_from = f.end_input;
         if (relevant_inputs == f.num_inputs) {
-            return bit_address(f);
+            return current_outlook;
         }
 
         // Wind state forward
@@ -344,7 +343,7 @@ public:
                     // Relevant!
                     first_relevant[in_pin] = i;
                     if (++relevant_inputs == f.num_inputs) {
-                        return bit_address(f);
+                        return bit_address(f); // === current_outlook
                     }
                 }
             }
@@ -368,6 +367,7 @@ private:
     std::vector<myint> first_relevant;
     // How many inputs are known to be relevant?
     myint relevant_inputs = 0;
+    myint unwind_from = 0;
 };
 
 /* Check that the output pins are relevant, pairwise independent and ordered
@@ -410,7 +410,8 @@ public:
 
     virtual ~output_ordered() = default;
 
-    virtual bit_address analyze(const function& f, const myint first_changed) {
+    virtual bit_address analyze(const function& f, const myint first_changed,
+                                const bit_address& current_outlook) {
         assert(first_ones.size() <= f.num_outputs);
         /* Must be guaranteed by print_remaining already.  Note: this is
          * necessary to guarantee the first loop invariant in 'analyze()'
@@ -431,11 +432,11 @@ public:
             if (DEBUG_ORD) {
                 std::cerr << "ord: Incomplete unwind" << std::endl;
             }
-            return bit_address(f);
+            return current_outlook;
         }
 
         // Wind state forward
-        for (myint i = first_changed; i < f.end_input; ++i) {
+        for (myint i = first_changed; i < current_outlook.input_pattern; ++i) {
             /* Loop invariant:  it must still be (theoretically) possible to fit
              * all remaining first_ones in the runway, according to can_fit.
              * Second invariant:  not all first-zeros have been seen already. */
@@ -463,7 +464,7 @@ public:
                     if (DEBUG_ORD) {
                         std::cerr << "ord: Good" << std::endl;
                     }
-                    return bit_address(f);
+                    return current_outlook;
                 }
                 continue;
             }
@@ -570,11 +571,15 @@ void print_remaining(function& f, std::vector<analyzer*>& properties) {
             bit_address next_change(f);
 
             for (analyzer* a : properties) {
-                const bit_address proposed = a->analyze(f, last_change);
+                const bit_address proposed = a->analyze(f, last_change, next_change);
                 if (DEBUG_PRINT) {
                     std::cerr << proposed << '\t';
                 }
-                next_change.assign_min(proposed);
+                assert(proposed.input_pattern <= next_change.input_pattern);
+                assert(proposed.input_pattern < next_change.input_pattern
+                       || proposed.input_pattern == f.end_input
+                       || proposed.bit >= next_change.bit);
+                next_change = proposed;
             }
             if (DEBUG_PRINT) {
                 std::cerr << std::endl;
