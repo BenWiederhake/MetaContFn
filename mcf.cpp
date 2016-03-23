@@ -48,7 +48,6 @@ typedef unsigned int myint;
 #define MAX_BITS 20
 static_assert(sizeof(myint) * 8 >= 1 + MAX_BITS, "Bad MAX_BITS size chosen!");
 /* The extra bit is needed by:
- * - function.advance
  * - function.end_input and function.end_output
  * - output_ordered::analyze, the check for "naughty" bits */
 
@@ -132,18 +131,15 @@ public:
             image[i] = 0;
         }
 
-        /* TODO/benchmark: unroll the first iteration of this to get rid of
-         * 'increment' which may or may not interfere with pipelining. */
+        /* Make sure that the 'at.bit' bit will change, by setting all bits
+         * below it to '1'. */
+        image[at.input_pattern] |= pin2mask(at.bit) - 1;
 
-        myint increment = pin2mask(at.bit);
         // Increment image[at], with carry:
         for (myint i = at.input_pattern; i >= 1; --i) {
             /* ↑ Consider only functions that map 0 to 0.
              * Thus, never change image[0]. */
-            /* This assumes that pin2mask(MAX_BITS)+pin2mask(MAX_BITS)
-             * doesn't overflow.  Uhh. */
-            image[i] += increment;
-            increment = 1;
+            ++image[i];
             if (image[i] < end_output) {
                 // Valid!
                 return i;
@@ -446,7 +442,7 @@ public:
             assert(can_fit(f.num_outputs - first_ones.size(), f.end_input - i));
             assert(first_ones.size() < f.num_outputs);
             const myint output = f.image[i];
-            const myint out_pin = first_ones.size();
+            const myint out_pin = static_cast<myint>(first_ones.size());
             if (output & ~(pin2mask(out_pin + 1) - 1)) {
                 /* A "naughty" (too high) pin was set.  Thus, not only is place
                  * 'i' invalid, but so will all further patterns. */
@@ -539,7 +535,7 @@ private:
 
 const static bool DEBUG_PRINT = false;
 
-const static size_t DEBUG_PRINT_STEP = 5000000;
+const static myint DEBUG_PRINT_STEP = 5000000;
 
 /* Print all (remaining) functions with the desired properties to std::cout.
  * Note that the 'properties' vector will not be changed, but its elements.
