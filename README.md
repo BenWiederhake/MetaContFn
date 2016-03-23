@@ -246,32 +246,40 @@ same.
 Raw data (csv):
 
 #out \ #in,2,3,4,5
-2,3§<.01s,195§<.01s,131667§0.3s,>78M§>300s
-3,0§<.01s,55§<.01s,124086§0.4s,>66M§>300s
-4,,2§<.01s,45415§0.4s,
-5,,0§<.01s,8764§0.4s,>24M§>300s
-6,,0@<.01s,1052§0.3s,
-7,,0@<.01s,72§0.3s,>2.2M§>300s
-8,,,2§20.2s,
-9,,,0§0.2s,>48K§>300s
-10,,,0§0.1s,
-11,,,,>158§>300s
-12,,,,>4744§>7200s
-15,,,,>0§>2500s
+2,3§<.01s,195§<.01s,131667§0.3s,>75M§>300s
+3,0§0s,55§<.01s,124086§0.4s,
+4,0§0s,2§<.01s,45415§0.2s,
+5,0§0s,0§0s,8764§<0.1s,>53M§>300s
+6,0§0s,0§0s,1052§<0.1s,
+7,0§0s,0§0s,72§<0.01s,
+8,0§0s,0§0s,2§2<0.01s,
+9,0§0s,0§0s,0§0s,
+10,0§0s,0§0s,0§0s,
+11,0§0s,0§0s,0§0s,>11M§>120s
+12,0§0s,0§0s,0§0s,>9.2M§>120s
+13,0§0s,0§0s,0§0s,500312§9s
+14,0§0s,0§0s,0§0s,15640§0.4s
+15,0§0s,0§0s,0§0s,272§<0.1s
+16,0§0s,0§0s,0§0s,2§<0.01s
+
 
 steps,2,3,4,5
-2,22,892,570K,>414M
-3,22,1926,2.2M,>1.1B
-4,,2026,4.1M,
-5,,1458,4.9M,>3.3B
-6,,820,4.6M,
-7,,382,3.8M,>3.9B
-8,,,2.9M,
-9,,,2.1M,>3.6B
-10,,,1.3M,
-11,,,,>3.4B
-12,,,,>83B
-15,,,,>25B
+2,13,828,551K,>380M
+3,0,1073,1.6M,
+4,0,307,1.6M,
+5,0,0,708K,>1.3B
+6,0,0,164K,
+7,0,0,20K,
+8,0,0,1007,
+9,0,0,0,
+10,0,0,0,
+11,0,0,0,>1.3B
+12,0,0,0,>1.6B
+13,0,0,0,130M
+14,0,0,0,6.6M
+15,0,0,0,217K
+16,0,0,0,3818
+
 
 
 Process with:
@@ -290,46 +298,50 @@ Note that <th></td> is parsed as <th></th>, so no need to clean up.
 
 <table>
 <tr><th align="right">#out \ #in</th><th align="right">2</th><th align="right">3</th><th align="right">4</th><th align="right">5</th></tr>
-<tr><th align="right">2</td><td align="right">3; <code>&lt;.01s</code></td><td align="right">195; <code>&lt;.01s</code></td><td align="right">131667; <code>0.3s</code></td><td align="right">&gt;78M; <code>&gt;300s</code></td></tr>
-<tr><th align="right">3</td><td align="right">0; <code>&lt;.01s</code></td><td align="right">55; <code>&lt;.01s</code></td><td align="right">124086; <code>0.4s</code></td><td align="right">&gt;66M; <code>&gt;300s</code></td></tr>
-<tr><th align="right">4</td><td align="right"></td><td align="right">2; <code>&lt;.01s</code></td><td align="right">45415; <code>0.4s</code></td><td align="right"></td></tr>
-<tr><th align="right">5</td><td align="right"></td><td align="right">0; <code>&lt;.01s</code></td><td align="right">8764; <code>0.4s</code></td><td align="right">&gt;24M; <code>&gt;300s</code></td></tr>
-<tr><th align="right">6</td><td align="right"></td><td align="right">0@&lt;.01s</td><td align="right">1052; <code>0.3s</code></td><td align="right"></td></tr>
-<tr><th align="right">7</td><td align="right"></td><td align="right">0@&lt;.01s</td><td align="right">72; <code>0.3s</code></td><td align="right">&gt;2.2M; <code>&gt;300s</code></td></tr>
-<tr><th align="right">8</td><td align="right"></td><td align="right"></td><td align="right">2; <code>20.2s</code></td><td align="right"></td></tr>
-<tr><th align="right">9</td><td align="right"></td><td align="right"></td><td align="right">0; <code>0.2s</code></td><td align="right">&gt;48K; <code>&gt;300s</code></td></tr>
-<tr><th align="right">10</td><td align="right"></td><td align="right"></td><td align="right">0; <code>0.1s</code></td><td align="right"></td></tr>
-<tr><th align="right">11</td><td align="right"></td><td align="right"></td><td align="right"></td><td align="right">&gt;158; <code>&gt;300s</code></td></tr>
-<tr><th align="right">12</td><td align="right"></td><td align="right"></td><td align="right"></td><td align="right">&gt;4744; <code>&gt;7200s</code></td></tr>
-<tr><th align="right">15</td><td align="right"></td><td align="right"></td><td align="right"></td><td align="right">&gt;0; <code>&gt;2500s</code></td></tr>
+<tr><th align="right">2</td><td align="right">3; <code>&lt;.01s</code></td><td align="right">195; <code>&lt;.01s</code></td><td align="right">131667; <code>0.3s</code></td><td align="right">&gt;75M; <code>&gt;300s</code></td></tr>
+<tr><th align="right">3</td><td align="right">0; <code>0s</code></td><td align="right">55; <code>&lt;.01s</code></td><td align="right">124086; <code>0.4s</code></td><td align="right"></td></tr>
+<tr><th align="right">4</td><td align="right">0; <code>0s</code></td><td align="right">2; <code>&lt;.01s</code></td><td align="right">45415; <code>0.2s</code></td><td align="right"></td></tr>
+<tr><th align="right">5</td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">8764; <code>&lt;0.1s</code></td><td align="right">&gt;53M; <code>&gt;300s</code></td></tr>
+<tr><th align="right">6</td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">1052; <code>&lt;0.1s</code></td><td align="right"></td></tr>
+<tr><th align="right">7</td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">72; <code>&lt;0.01s</code></td><td align="right"></td></tr>
+<tr><th align="right">8</td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">2; <code>2&lt;0.01s</code></td><td align="right"></td></tr>
+<tr><th align="right">9</td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right"></td></tr>
+<tr><th align="right">10</td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right"></td></tr>
+<tr><th align="right">11</td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">&gt;11M; <code>&gt;120s</code></td></tr>
+<tr><th align="right">12</td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">&gt;9.2M; <code>&gt;120s</code></td></tr>
+<tr><th align="right">13</td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">500312; <code>9s</code></td></tr>
+<tr><th align="right">14</td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">15640; <code>0.4s</code></td></tr>
+<tr><th align="right">15</td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">272; <code>&lt;0.1s</code></td></tr>
+<tr><th align="right">16</td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">0; <code>0s</code></td><td align="right">2; <code>&lt;0.01s</code></td></tr>
 </table>
 
 What does this table mean?  For example, let's look at the entry
-`#in=4, #out=7`, which says "72; 9.1s".  This means that it found 72
-relevant functions in 9.1 seconds.  Note that none of the entries for
-`#in=5` were allowed to finesh.  Instead, computation was aborted,
+`#in=4, #out=7`, which says "72; <0.01s".  This means that it found 72
+relevant functions in less than 0.01 seconds.  Note that several of the
+entries for `#in=5` weren't allowed to finish and were aborted instead,
 because I'm impatient.  Note that in these cases, it looked to me like
 most of the function space wasn't even explored, so the given numbes
 may or may not correlate with the numbers if it were allowed to finish.
-
-Note that I computed [the `#in=5,#out=16` function below](#understanding-the-starting-patterns) by hand while my machine was searching for `#in=5,#out=16` patterns.  Funny enough, it didn't find anything.
 
 Also, here's a table of how many steps each computation took:
 
 <table>
 <tr><th align="right">steps</th><th align="right">2</th><th align="right">3</th><th align="right">4</th><th align="right">5</th></tr>
-<tr><th align="right">2</td><td align="right">22</td><td align="right">892</td><td align="right">570K</td><td align="right">&gt;414M</td></tr>
-<tr><th align="right">3</td><td align="right">22</td><td align="right">1926</td><td align="right">2.2M</td><td align="right">&gt;1.1B</td></tr>
-<tr><th align="right">4</td><td align="right"></td><td align="right">2026</td><td align="right">4.1M</td><td align="right"></td></tr>
-<tr><th align="right">5</td><td align="right"></td><td align="right">1458</td><td align="right">4.9M</td><td align="right">&gt;3.3B</td></tr>
-<tr><th align="right">6</td><td align="right"></td><td align="right">820</td><td align="right">4.6M</td><td align="right"></td></tr>
-<tr><th align="right">7</td><td align="right"></td><td align="right">382</td><td align="right">3.8M</td><td align="right">&gt;3.9B</td></tr>
-<tr><th align="right">8</td><td align="right"></td><td align="right"></td><td align="right">2.9M</td><td align="right"></td></tr>
-<tr><th align="right">9</td><td align="right"></td><td align="right"></td><td align="right">2.1M</td><td align="right">&gt;3.6B</td></tr>
-<tr><th align="right">10</td><td align="right"></td><td align="right"></td><td align="right">1.3M</td><td align="right"></td></tr>
-<tr><th align="right">11</td><td align="right"></td><td align="right"></td><td align="right"></td><td align="right">&gt;3.4B</td></tr>
-<tr><th align="right">12</td><td align="right"></td><td align="right"></td><td align="right"></td><td align="right">&gt;83B</td></tr>
-<tr><th align="right">15</td><td align="right"></td><td align="right"></td><td align="right"></td><td align="right">&gt;25B</td></tr>
+<tr><th align="right">2</td><td align="right">13</td><td align="right">828</td><td align="right">551K</td><td align="right">&gt;380M</td></tr>
+<tr><th align="right">3</td><td align="right">0</td><td align="right">1073</td><td align="right">1.6M</td><td align="right"></td></tr>
+<tr><th align="right">4</td><td align="right">0</td><td align="right">307</td><td align="right">1.6M</td><td align="right"></td></tr>
+<tr><th align="right">5</td><td align="right">0</td><td align="right">0</td><td align="right">708K</td><td align="right">&gt;1.3B</td></tr>
+<tr><th align="right">6</td><td align="right">0</td><td align="right">0</td><td align="right">164K</td><td align="right"></td></tr>
+<tr><th align="right">7</td><td align="right">0</td><td align="right">0</td><td align="right">20K</td><td align="right"></td></tr>
+<tr><th align="right">8</td><td align="right">0</td><td align="right">0</td><td align="right">1007</td><td align="right"></td></tr>
+<tr><th align="right">9</td><td align="right">0</td><td align="right">0</td><td align="right">0</td><td align="right"></td></tr>
+<tr><th align="right">10</td><td align="right">0</td><td align="right">0</td><td align="right">0</td><td align="right"></td></tr>
+<tr><th align="right">11</td><td align="right">0</td><td align="right">0</td><td align="right">0</td><td align="right">&gt;1.3B</td></tr>
+<tr><th align="right">12</td><td align="right">0</td><td align="right">0</td><td align="right">0</td><td align="right">&gt;1.6B</td></tr>
+<tr><th align="right">13</td><td align="right">0</td><td align="right">0</td><td align="right">0</td><td align="right">130M</td></tr>
+<tr><th align="right">14</td><td align="right">0</td><td align="right">0</td><td align="right">0</td><td align="right">6.6M</td></tr>
+<tr><th align="right">15</td><td align="right">0</td><td align="right">0</td><td align="right">0</td><td align="right">217K</td></tr>
+<tr><th align="right">16</td><td align="right">0</td><td align="right">0</td><td align="right">0</td><td align="right">3818</td></tr>
 </table>
 
 One can nicely see here that with increasing `#out`, the [pigeonhole
@@ -351,9 +363,6 @@ TOWRITE
 
 See all `TODO`s in the code, and do the respective benchmarking.
 
-When `#out` is big, it may shave off several orders of magnitudes to
-report not only which input pattern has to change, but also the most
-significant output bit for that input pattern.
 
 #### Missing features
 
@@ -415,7 +424,7 @@ Let's try to build a `fn(B^5->B^16)` from that.  Canonicalize the above
 to the form the program expects by inverting the least significant
 output pin:
 ```
-#_ fn(B^5 -> B^16)
+fn(B^5 -> B^16)
 [   0,    1,    1,    3,    1,    5,    9,    1,
     1,   11,   21,    1,   41,    1,    1,   81,
     1,  101,  201,    1,  401,    1,    1,  801,
@@ -424,6 +433,14 @@ output pin:
 Verifying this by hand yields:  Yep, that's a metastability-containing
 function.
 
+Additionally, the program finds this other function:
+```
+fn(B^5 -> B^16)
+[   0,    1,    2,    0,    4,    0,    0,    8,
+   10,    0,    0,   20,    0,   40,   80,    0,
+  100,    0,    0,  200,    0,  400,  800,    0,
+    0, 1000, 2000,    0, 4000,    0,    0, 8000]
+```
 
 Not sure how to upper bound this appropriately, but it quickly leads to
 [the previous result](#output-order) `#out <= 2^#in`.  Of each
@@ -433,15 +450,5 @@ more interesting result `#out <= 2^(#in - 1)`.  Note that this bound
 seems to be tight at least for `#in <= 5`, as proven by example
 (previous construction and [statistics section](#statistics)).
 
-Here's each *actually* first function:
-```
-#out=2 => ... 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0]
-#out=3 => ... 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 4, 0]
-#out=4 => ... 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 4, 0, 0, 8]
-#out=5 => ... 0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 4, 0, 8, 0, 0,10]
-#out=6 => ... 0, 0, 0, 0, 0, 1, 2, 0, 0, 4, 8, 0,10, 0, 0,20]
-#out=7 => ... 0, 0, 0, 1, 0, 2, 4, 0, 0, 8,10, 0,20, 0, 0,40]
-#out=8 => ... 0, 1, 2, 0, 4, 0, 0, 8,10, 0, 0,20, 0,40,80, 0]
-```
-When it differs from the above, does it only differ in the
-initialization, i.e., reserve the input pattern `..1111` first?
+The difference to each *actually* first function seems to only depend
+on whether the all-zeroes input-pattern ends up on the list.
