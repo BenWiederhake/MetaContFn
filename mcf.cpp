@@ -405,11 +405,6 @@ class output_ordered: public analyzer {
 public:
     output_ordered(const function& f) {
         assert(f.num_outputs > 0);
-        /* Must be guaranteed by print_remaining already.  Note: this is
-         * necessary to guarantee the first loop invariant in 'analyze()'
-         * in its first invocation.
-         * To see it in action, start the program with #out / 2 > 2^#in */
-        assert(can_fit(f.num_outputs, f.end_input));
         first_ones.reserve(f.num_outputs);
     }
 
@@ -417,6 +412,11 @@ public:
 
     virtual bit_address analyze(const function& f, const myint first_changed) {
         assert(first_ones.size() <= f.num_outputs);
+        /* Must be guaranteed by print_remaining already.  Note: this is
+         * necessary to guarantee the first loop invariant in 'analyze()'
+         * in its first invocation.
+         * To see it in action, start the program with #out / 2 > 2^#in */
+        assert(can_fit(f.num_outputs, f.end_input));
 
         // Partially unwind state
         while (!first_ones.empty()) {
