@@ -49,7 +49,8 @@ typedef unsigned int myint;
 static_assert(sizeof(myint) * 8 >= 1 + MAX_BITS, "Bad MAX_BITS size chosen!");
 /* The extra bit is needed by:
  * - function.advance
- * - function.end_input and function.end_output */
+ * - function.end_input and function.end_output
+ * - output_ordered::analyze, the check for "naughty" bits */
 
 myint pin2mask(const myint pin) {
     assert(pin <= MAX_BITS);
@@ -432,7 +433,7 @@ public:
         }
         if (first_ones.size() == f.num_outputs) {
             if (DEBUG_ORD) {
-                std::cout << "ord: Incomplete unwind" << std::endl;
+                std::cerr << "ord: Incomplete unwind" << std::endl;
             }
             return bit_address(f);
         }
@@ -446,10 +447,14 @@ public:
             assert(first_ones.size() < f.num_outputs);
             const myint output = f.image[i];
             const myint out_pin = first_ones.size();
-            if (output & (pin2mask(out_pin) - 1)) {
-                /* A naughty pin was set.  The next output that doesn't have a
-                 * naughty output pin necessarily has 'out_pin' set. */
-                return bit_address(i, out_pin);
+            if (output & ~(pin2mask(out_pin + 1) - 1)) {
+                /* A "naughty" (too high) pin was set.  Thus, not only is place
+                 * 'i' invalid, but so will all further patterns. */
+                if (DEBUG_ORD) {
+                    std::cerr << "ord: naughty bit" << std::endl;
+                }
+                assert(i > 0);
+                return bit_address(i - 1, 0);
             }
             if (output & pin2mask(out_pin)) {
                 assert(first_ones.empty() || first_ones.back() < i);
@@ -459,6 +464,9 @@ public:
                 assert(first_ones.size() <= f.num_outputs);
                 if (first_ones.size() == f.num_outputs) {
                     /* Whee! Finished! */
+                    if (DEBUG_ORD) {
+                        std::cerr << "ord: Good" << std::endl;
+                    }
                     return bit_address(f);
                 }
                 continue;
@@ -468,6 +476,9 @@ public:
             if (!can_fit(f.num_outputs - first_ones.size(), f.end_input - (i + 1))) {
                 /* Then the next output that has enough runway necessarily has
                  * 'out_pin' set. */
+                if (DEBUG_ORD) {
+                    std::cerr << "ord: missed opportunity" << std::endl;
+                }
                 return bit_address(i, out_pin);
             }
         }
@@ -578,7 +589,8 @@ void print_remaining(function& f, std::vector<analyzer*>& properties) {
                 ++fns;
                 next_change.input_pattern = f.end_input - 1;
                 next_change.bit = 0;
-            } else if (display_watchdog >= DEBUG_PRINT_STEP) {
+            }
+            if (display_watchdog >= DEBUG_PRINT_STEP) {
                 std::cerr << "#_ " << f << std::endl;
                 std::cerr << "#_ " << fns << " fns in " << steps << " steps."
                         << std::endl;
