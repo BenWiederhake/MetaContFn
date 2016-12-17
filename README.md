@@ -452,3 +452,18 @@ seems to be tight at least for `#in <= 5`, as proven by example
 
 The difference to each *actually* first function seems to only depend
 on whether the all-zeroes input-pattern ends up on the list.
+
+#### Constructing a metastability-containing demuxer
+
+As you may have guessed, these "interesting" functions end up being
+some kind of demuxer, but metastability-containing, and also with a
+parity-input bit.
+
+The behavior is simple: if the input and the parity bit agree,
+interpret the input as a binary number `x`, set the output bit `x` to
+1, set all other to 0; just like a normal demuxer.  If the input and
+the input parity bit disagree, don't output anything at all.
+
+This proves by example that there are "interesting" metastability-containing functions, which:
+- only have output bits that have a full cone (= dependence on *all* input bits)
+- have *many* output bits; `2^(num_in-1)` to be precise.
