@@ -1,7 +1,6 @@
 # What is this?
 
-Enumerates all metastability-containing functions
-
+Enumerates all metastability-containing functions, in a mathematical sense.
 
 ## Metasta-what?
 
@@ -16,11 +15,10 @@ bits, and producing `j` output bits.  And your function clearly defines
 See that?  A single bitflip in the input causes three bitflips in the
 output!
 
-Now let's say there's a fault somewhere else in the system (of course
-it's somewhere else; our code/hardware is *never* faulty!), and
-precisely that input pin doesn't quite read a logical 0, nor a logical
-1.  The voltage is … somewhere in between.  It "hangs in the air", so
-to speak.  In other words: it is metastable.  Thus, the following might
+Now let's say there's a fault somewhere else in the system, and
+precisely that input pin doesn't quite read a logical 0, nor a logical 1.
+The voltage is somewhere in between, perhaps not even constant.
+In other words: it is metastable.  Thus, the following might
 happen:
 
 ```
